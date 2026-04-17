@@ -1,5 +1,6 @@
 import torch
 import re
+import random
 
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
@@ -56,40 +57,63 @@ class LlamaPredictor:
         return text
 
     # -----------------------------------
-    # EMOTION STYLE
+    # EMOTION STYLE (slightly improved)
     # -----------------------------------
     def get_emotion_style(self, emotion):
 
         styles = {
             "joy": {
                 "tone": "warm and natural",
-                "instruction": "Respond like a happy friend, calm and real."
+                "instruction": "Be positive but not overly excited."
             },
             "sadness": {
                 "tone": "soft and caring",
-                "instruction": "Be gentle and emotionally supportive like a close friend."
+                "instruction": "Be gentle, emotional, and supportive."
             },
             "anxiety": {
                 "tone": "calm and grounding",
-                "instruction": "Help the user relax and reduce overthinking."
+                "instruction": "Help the user slow down mentally."
             },
             "anger": {
                 "tone": "calm and understanding",
-                "instruction": "Do not argue, just validate feelings."
+                "instruction": "Validate feelings, do not argue."
             },
             "stress": {
                 "tone": "supportive and simple",
-                "instruction": "Give short calming responses only."
+                "instruction": "Keep responses short and calming."
             }
         }
 
         return styles.get(emotion, {
             "tone": "friendly and natural",
-            "instruction": "Respond like a normal human friend."
+            "instruction": "Respond like a real human friend."
         })
 
     # -----------------------------------
-    # PROMPT BUILDER (FIXED HUMAN MODE)
+    # EMOTIONAL VARIATION (FIXED + SMART)
+    # -----------------------------------
+    def emotional_variation(self, emotion):
+
+        responses = {
+            "sadness": [
+                "I'm really sorry you're going through that… do you want to talk about it?",
+                "That sounds really heavy… I'm here with you.",
+                "I hear you… what part has been the hardest?"
+            ],
+            "neutral": [
+                "Hey, I'm here with you.",
+                "Hi 🙂 how are you feeling right now?"
+            ],
+            "anxiety": [
+                "Take a breath with me… what’s going on?",
+                "You're not alone in this."
+            ]
+        }
+
+        return random.choice(responses.get(emotion, ["I'm here with you."]))
+
+    # -----------------------------------
+    # PROMPT BUILDER (IMPROVED FLOW)
     # -----------------------------------
     def build_prompt(self, user_input, emotion):
 
@@ -100,19 +124,18 @@ class LlamaPredictor:
 
         style = self.get_emotion_style(emotion)
 
-        prompt = f"""You are a close friend talking to someone you care about.
+        prompt = f"""You are a close friend.
 
 RULES:
-- You are NOT a technical assistant
-- NEVER talk about tech, tasks, or helping with problems
-- NEVER say "I can help with..." or "tech issues"
-- Be warm, calm, and human
-- Keep replies SHORT (1–2 sentences)
-- Ask at most ONE gentle question (or none)
-- Focus on feelings, not fixing
+- Do NOT behave like a robot or assistant
+- NEVER give long explanations
+- NEVER ask more than ONE question
+- Sometimes DO NOT ask any question at all
+- First respond emotionally, then optionally respond with a question
+- Keep it natural and human
 
 Tone: {style['tone']}
-Behavior: {style['instruction']}
+Instruction: {style['instruction']}
 
 Conversation:
 {history}
@@ -125,7 +148,7 @@ Friend:
         return prompt
 
     # -----------------------------------
-    # GENERATE RESPONSE
+    # GENERATE RESPONSE (FIXED INTELLIGENCE FLOW)
     # -----------------------------------
     def generate_response(self, user_input, emotion="neutral"):
 
@@ -146,9 +169,9 @@ Friend:
                 **inputs,
                 max_new_tokens=45,
                 do_sample=True,
-                temperature=0.6,
+                temperature=0.55,   # 🔥 more stable = more intelligent
                 top_p=0.85,
-                repetition_penalty=1.35,
+                repetition_penalty=1.4,
                 pad_token_id=self.tokenizer.eos_token_id,
                 eos_token_id=self.tokenizer.eos_token_id,
             )
@@ -160,66 +183,36 @@ Friend:
         # -----------------------------------
         if "Friend:" in decoded:
             response = decoded.split("Friend:")[-1]
-        elif "Assistant:" in decoded:
-            response = decoded.split("Assistant:")[-1]
         else:
             response = decoded
 
         # -----------------------------------
-        #  NEW: CUT WEIRD CONTINUATIONS
-        # -----------------------------------
-        stop_tokens = ["[", "]", "Conversation", "Example", "The conversation"]
-        for token in stop_tokens:
-            if token in response:
-                response = response.split(token)[0]
-
-        # -----------------------------------
-        # REMOVE BAD PATTERNS (INCLUDING TECH + DATASET LEAKS)
+        # REMOVE LEAKS
         # -----------------------------------
         bad_phrases = [
             "User:", "Assistant:", "Friend:",
-            "AI", "as an AI", "language model",
-            "training data", "Task", "Step",
-            "Instructions", "Response example",
-            "Reply:",
-
-            # REMOVE TECH BEHAVIOR
-            "tech", "technical", "issue",
-            "assist you", "help you with",
-            "I can help", "support with",
-
-            # REMOVE DATASET GARBAGE
-            "[user]", "[friend]", "[prosper]",
-            "office", "meeting", "visit",
-            "pandemic", "conversation continues"
+            "AI", "language model",
+            "training data",
+            "Task", "Step",
+            "Instructions",
+            "[user]", "[friend]"
         ]
 
         for phrase in bad_phrases:
             response = response.replace(phrase, "")
 
-        # -----------------------------------
-        # CUT LONG JUNK
-        # -----------------------------------
-        for word in ["Task", "Step", "1.", "2.", "3."]:
-            if word in response:
-                response = response.split(word)[0]
-
         response = response.strip()
 
         # -----------------------------------
-        # LIMIT QUESTIONS
+        # INTELLIGENCE FIX (IMPORTANT)
         # -----------------------------------
-        if response.count("?") > 1:
-            response = response.split("?")[0] + "?"
+        words = response.split()
 
-        # -----------------------------------
-        #  FINAL EMOTION CONTROL
-        # -----------------------------------
-        if emotion == "sadness":
-            response = "I'm really sorry you're feeling this way… do you want to talk about what happened?"
+        if len(words) < 4:
+            response = self.emotional_variation(emotion)
 
-        if emotion == "neutral" and len(response.split()) > 12:
-            response = "Hey  how are you doing?"
+        if emotion == "neutral" and len(words) > 14:
+            response = self.emotional_variation("neutral")
 
         response = self.clean_response(response)
 
