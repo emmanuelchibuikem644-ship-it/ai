@@ -57,7 +57,7 @@ class LlamaPredictor:
         return text
 
     # -----------------------------------
-    # EMOTION STYLE (slightly improved)
+    # EMOTION STYLE
     # -----------------------------------
     def get_emotion_style(self, emotion):
 
@@ -90,7 +90,7 @@ class LlamaPredictor:
         })
 
     # -----------------------------------
-    # EMOTIONAL VARIATION (FIXED + SMART)
+    # EMOTIONAL VARIATION (FALLBACK)
     # -----------------------------------
     def emotional_variation(self, emotion):
 
@@ -113,7 +113,7 @@ class LlamaPredictor:
         return random.choice(responses.get(emotion, ["I'm here with you."]))
 
     # -----------------------------------
-    # PROMPT BUILDER (IMPROVED FLOW)
+    # PROMPT BUILDER
     # -----------------------------------
     def build_prompt(self, user_input, emotion):
 
@@ -148,7 +148,7 @@ Friend:
         return prompt
 
     # -----------------------------------
-    # GENERATE RESPONSE (FIXED INTELLIGENCE FLOW)
+    # GENERATE RESPONSE (FINAL)
     # -----------------------------------
     def generate_response(self, user_input, emotion="neutral"):
 
@@ -169,7 +169,7 @@ Friend:
                 **inputs,
                 max_new_tokens=45,
                 do_sample=True,
-                temperature=0.55,   # 🔥 more stable = more intelligent
+                temperature=0.5,   #  more stable + intelligent
                 top_p=0.85,
                 repetition_penalty=1.4,
                 pad_token_id=self.tokenizer.eos_token_id,
@@ -187,14 +187,20 @@ Friend:
             response = decoded
 
         # -----------------------------------
-        # REMOVE LEAKS
+        # REMOVE LEAKS / JUNK
         # -----------------------------------
-        bad_phrases = [
+        stop_tokens = [
             "User:", "Assistant:", "Friend:",
+            "AI:", "Conversation", "Example"
+        ]
+
+        for token in stop_tokens:
+            if token in response:
+                response = response.split(token)[0]
+
+        bad_phrases = [
             "AI", "language model",
             "training data",
-            "Task", "Step",
-            "Instructions",
             "[user]", "[friend]"
         ]
 
@@ -204,15 +210,24 @@ Friend:
         response = response.strip()
 
         # -----------------------------------
-        # INTELLIGENCE FIX (IMPORTANT)
+        # CONTROL QUESTIONS
+        # -----------------------------------
+        if response.count("?") > 1:
+            response = response.split("?")[0] + "?"
+
+        # -----------------------------------
+        # SMART FALLBACK
         # -----------------------------------
         words = response.split()
 
         if len(words) < 4:
             response = self.emotional_variation(emotion)
 
-        if emotion == "neutral" and len(words) > 14:
-            response = self.emotional_variation("neutral")
+        # -----------------------------------
+        # STOP OVER-TALKING
+        # -----------------------------------
+        if len(words) > 20:
+            response = "I hear you… tell me more about that."
 
         response = self.clean_response(response)
 

@@ -1,27 +1,27 @@
 {
   "anxiety": [
-    "Try a breathing exercise: inhale for 4 seconds, hold for 4, exhale for 4.",
-    "Focus on your surroundings using the 5-4-3-2-1 grounding technique.",
-    "Remind yourself that this feeling will pass, even if it feels intense right now."
+    "Try taking a slow breath… you're safe right now.",
+    "It might help to pause and focus on what's around you.",
+    "This feeling will pass, even if it feels strong right now."
   ],
   "stress": [
-    "Consider taking a short break or stretching your body.",
-    "Write down what is stressing you to clear your mind.",
-    "Try focusing on one small task at a time instead of everything at once."
+    "Maybe take a short break and give your mind a moment.",
+    "You don’t have to figure everything out at once.",
+    "Try focusing on just one small step for now."
   ],
   "sadness": [
-    "Talking to someone you trust can really help.",
-    "Try doing something small that you enjoy today.",
-    "It’s okay to feel this way—give yourself some time and kindness."
+    "You don’t have to go through this alone.",
+    "It’s okay to feel like this sometimes.",
+    "Be gentle with yourself today."
   ],
   "anger": [
-    "Take a few deep breaths before reacting.",
-    "Step away from the situation for a moment if possible.",
-    "Try to pause and reflect before responding—it can help prevent regret later."
+    "It’s okay to feel upset… just take a moment to breathe.",
+    "Stepping away for a bit might help clear your head.",
+    "Try not to rush your reaction."
   ],
   "joy": [
-    "That’s great to hear! Keep doing what makes you feel good.",
-    "It’s nice to see you feeling this way—hold onto that moment."
+    "That’s really nice to hear ",
+    "I’m glad something good is happening for you."
   ],
   "neutral": []
 }
