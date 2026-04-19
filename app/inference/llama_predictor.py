@@ -39,6 +39,12 @@ class LlamaPredictor:
         if not text:
             return "I'm here with you."
 
+        # REMOVE weird continuation junk
+        stop_tokens = ["User:", "Assistant:", "Friend:", "[", "]", "Conversation", "Example"]
+        for token in stop_tokens:
+            if token in text:
+                text = text.split(token)[0]
+
         sentences = text.split(".")
         seen = []
         final = []
@@ -63,24 +69,24 @@ class LlamaPredictor:
 
         styles = {
             "joy": {
-                "tone": "warm and natural",
-                "instruction": "Be positive but not overly excited."
+                "tone": "warm and light",
+                "instruction": "Be positive but natural, not over-excited."
             },
             "sadness": {
                 "tone": "soft and caring",
-                "instruction": "Be gentle, emotional, and supportive."
+                "instruction": "Be gentle, understanding, and emotionally present."
             },
             "anxiety": {
                 "tone": "calm and grounding",
-                "instruction": "Help the user slow down mentally."
+                "instruction": "Slow things down and be reassuring."
             },
             "anger": {
                 "tone": "calm and understanding",
-                "instruction": "Validate feelings, do not argue."
+                "instruction": "Acknowledge feelings without arguing."
             },
             "stress": {
                 "tone": "supportive and simple",
-                "instruction": "Keep responses short and calming."
+                "instruction": "Keep it short and calming."
             }
         }
 
@@ -96,16 +102,16 @@ class LlamaPredictor:
 
         responses = {
             "sadness": [
-                "I'm really sorry you're going through that… do you want to talk about it?",
+                "I'm really sorry you're feeling this way… do you want to talk about it?",
                 "That sounds really heavy… I'm here with you.",
-                "I hear you… what part has been the hardest?"
+                "I hear you… what’s been on your mind?"
             ],
             "neutral": [
-                "Hey, I'm here with you.",
-                "Hi 🙂 how are you feeling right now?"
+                "Hey  how are you feeling today?",
+                "Hi, I'm here with you."
             ],
             "anxiety": [
-                "Take a breath with me… what’s going on?",
+                "That sounds overwhelming… what’s been on your mind?",
                 "You're not alone in this."
             ]
         }
@@ -113,7 +119,7 @@ class LlamaPredictor:
         return random.choice(responses.get(emotion, ["I'm here with you."]))
 
     # -----------------------------------
-    # PROMPT BUILDER
+    # PROMPT BUILDER (VERY IMPORTANT)
     # -----------------------------------
     def build_prompt(self, user_input, emotion):
 
@@ -124,18 +130,29 @@ class LlamaPredictor:
 
         style = self.get_emotion_style(emotion)
 
-        prompt = f"""You are a close friend.
+        prompt = f"""You are a close friend talking to someone you care about.
+
+GOAL:
+- Be emotionally supportive like a real friend
+- Do NOT act like a therapist or assistant
+- Do NOT give medical or professional advice
 
 RULES:
-- Do NOT behave like a robot or assistant
-- NEVER give long explanations
-- NEVER ask more than ONE question
-- Sometimes DO NOT ask any question at all
-- First respond emotionally, then optionally respond with a question
-- Keep it natural and human
+- First acknowledge the feeling
+- Then respond naturally like a human
+- Keep replies SHORT (1–2 sentences)
+- Ask at most ONE gentle question (optional)
+- Sometimes do NOT ask a question
+- Avoid repeating phrases
+- Do NOT repeat the same sentence twice
+- Do NOT respond with generic phrases like "what's on your mind?" repeatedly
+- Always respond based on what the user actually said
+- Give practical advice when appropriate
+- Ask specific follow-up questions
 
+STYLE:
 Tone: {style['tone']}
-Instruction: {style['instruction']}
+Behavior: {style['instruction']}
 
 Conversation:
 {history}
@@ -148,7 +165,7 @@ Friend:
         return prompt
 
     # -----------------------------------
-    # GENERATE RESPONSE (FINAL)
+    # GENERATE RESPONSE
     # -----------------------------------
     def generate_response(self, user_input, emotion="neutral"):
 
@@ -167,9 +184,9 @@ Friend:
 
             outputs = self.model.generate(
                 **inputs,
-                max_new_tokens=45,
+                max_new_tokens=40,
                 do_sample=True,
-                temperature=0.5,   #  more stable + intelligent
+                temperature=0.55,
                 top_p=0.85,
                 repetition_penalty=1.4,
                 pad_token_id=self.tokenizer.eos_token_id,
@@ -187,21 +204,16 @@ Friend:
             response = decoded
 
         # -----------------------------------
-        # REMOVE LEAKS / JUNK
+        # REMOVE JUNK / LEAKS
         # -----------------------------------
-        stop_tokens = [
-            "User:", "Assistant:", "Friend:",
-            "AI:", "Conversation", "Example"
-        ]
-
+        stop_tokens = ["User:", "Assistant:", "Friend:", "AI:", "Conversation"]
         for token in stop_tokens:
             if token in response:
                 response = response.split(token)[0]
 
         bad_phrases = [
-            "AI", "language model",
-            "training data",
-            "[user]", "[friend]"
+            "AI", "language model", "training data",
+            "[user]", "[friend]", "[prosper]"
         ]
 
         for phrase in bad_phrases:
@@ -210,24 +222,39 @@ Friend:
         response = response.strip()
 
         # -----------------------------------
+        # REMOVE ROBOTIC STARTS
+        # -----------------------------------
+        bad_starts = ["I hear you", "I understand", "I can relate"]
+
+        for bad in bad_starts:
+            if response.startswith(bad):
+                response = self.emotional_variation(emotion)
+
+        # -----------------------------------
         # CONTROL QUESTIONS
         # -----------------------------------
         if response.count("?") > 1:
             response = response.split("?")[0] + "?"
 
         # -----------------------------------
+        # PREVENT REPEATING SAME RESPONSE
+        # -----------------------------------
+        if any(response == turn["bot"] for turn in self.chat_history):
+            response = self.emotional_variation(emotion)
+
+        # -----------------------------------
         # SMART FALLBACK
         # -----------------------------------
         words = response.split()
 
-        if len(words) < 4:
+        if len(words) < 3 or response.lower() in ["i'm here with you.", "i am here with you."]:
             response = self.emotional_variation(emotion)
 
         # -----------------------------------
         # STOP OVER-TALKING
         # -----------------------------------
         if len(words) > 20:
-            response = "I hear you… tell me more about that."
+            response = self.emotional_variation(emotion)
 
         response = self.clean_response(response)
 

@@ -6,6 +6,14 @@ def main():
 
     bot = ResponseGenerator()
 
+    # ✅ ADDED: simple session memory (DO NOT change structure)
+    chat_history = []
+
+    def add_to_history(role, message):
+        chat_history.append(f"{role}: {message}")
+        if len(chat_history) > 8:  # keep last 4 exchanges
+            chat_history.pop(0)
+
     while True:
         try:
             user_input = input("You: ")
@@ -17,7 +25,21 @@ def main():
                 print("Bot: Take care of yourself. I'm here whenever you need support.")
                 break
 
-            result = bot.generate(user_input)
+            # ✅ ADD USER MESSAGE TO MEMORY
+            add_to_history("User", user_input)
+
+            # 🔥 SEND CONTEXT TO MODEL (IMPORTANT IMPROVEMENT)
+            context = "\n".join(chat_history)
+
+            # If your ResponseGenerator supports context, pass it
+            try:
+                result = bot.generate(user_input, context=context)
+            except TypeError:
+                # fallback if your function doesn't accept context yet
+                result = bot.generate(user_input)
+
+            #  ADD BOT RESPONSE TO MEMORY
+            add_to_history("Bot", result["response"])
 
             print(f"Detected Emotion: {result['emotion']}")
             print(f"Bot: {result['response']}\n")

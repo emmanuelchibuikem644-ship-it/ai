@@ -27,11 +27,38 @@ class EmotionPredictor:
         self.id2label = self.model.config.id2label
 
     # -----------------------------------
-    # NEW: TEXT NORMALIZATION (IMPORTANT)
+    # TEXT NORMALIZATION
     # -----------------------------------
     def normalize_text(self, text):
         return text.lower().strip()
 
+    # -----------------------------------
+    # 🔥 NEW: RULE-BASED CORRECTION (VERY IMPORTANT)
+    # -----------------------------------
+    def rule_boost(self, text, probs):
+
+        text = text.lower()
+
+        # keyword boosting (fix model mistakes)
+        rules = {
+            "sadness": ["sad", "down", "unhappy", "tired", "lonely", "failed"],
+            "anxiety": ["overwhelmed", "worried", "stress", "can't sleep", "anxious", "exam"],
+            "anger": ["angry", "annoyed", "frustrated"],
+            "joy": ["happy", "excited", "good", "great"]
+        }
+
+        for emotion, keywords in rules.items():
+            for word in keywords:
+                if word in text:
+                    for i, label in self.id2label.items():
+                        if label.lower() == emotion:
+                            probs[i] += 0.20  # boost score
+
+        return probs
+
+    # -----------------------------------
+    # PREDICT EMOTIONS
+    # -----------------------------------
     def predict_emotions(self, text):
 
         text = self.normalize_text(text)
@@ -51,10 +78,12 @@ class EmotionPredictor:
 
         logits = outputs.logits
 
-        # 🔥 CHANGE: softmax instead of sigmoid (more stable)
+        # softmax (correct)
         probs = torch.softmax(logits, dim=-1)
-
         probs = probs.squeeze().cpu().numpy()
+
+        # 🔥 APPLY RULE BOOST
+        probs = self.rule_boost(text, probs)
 
         predicted_emotions = []
 
@@ -71,7 +100,7 @@ class EmotionPredictor:
                 )
 
         # -----------------------------------
-        # FIX: ALWAYS RETURN BEST EMOTION
+        # ALWAYS RETURN BEST
         # -----------------------------------
         if len(predicted_emotions) == 0:
 
@@ -85,7 +114,7 @@ class EmotionPredictor:
             )
 
         # -----------------------------------
-        # NEW: SORT BY CONFIDENCE
+        # SORT
         # -----------------------------------
         predicted_emotions = sorted(
             predicted_emotions,

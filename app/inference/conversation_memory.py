@@ -3,7 +3,6 @@ class ConversationMemory:
         self.history = []
         self.max_history = max_history
 
-        # NEW: store user info (like name)
         self.user_profile = {
             "name": None
         }
@@ -17,47 +16,80 @@ class ConversationMemory:
         if len(self.history) > self.max_history:
             self.history.pop(0)
 
-        # NEW: auto-detect name
         self.extract_user_info(user)
 
     # -----------------------------------
-    # NEW: EXTRACT USER INFO (SMART)
+    # EXTRACT USER INFO
     # -----------------------------------
     def extract_user_info(self, user_input):
 
-        user_input = user_input.lower()
+        text = user_input.lower().strip()
 
-        # detect name
-        if "my name is" in user_input:
-            name = user_input.split("my name is")[-1].strip().split()[0]
-            self.user_profile["name"] = name.capitalize()
+        if "my name is" in text:
+            name = text.split("my name is")[-1].strip().split()[0]
+            if self._valid_name(name):
+                self.user_profile["name"] = name.capitalize()
 
-        elif "i am" in user_input and len(user_input.split()) <= 5:
-            # simple "I am Prosper"
-            name = user_input.split("i am")[-1].strip().split()[0]
-            if len(name) < 15:
+        elif text.startswith("i am "):
+            name = text.replace("i am", "").strip().split()[0]
+            if self._valid_name(name):
+                self.user_profile["name"] = name.capitalize()
+
+        elif text.startswith("i'm "):
+            name = text.replace("i'm", "").strip().split()[0]
+            if self._valid_name(name):
                 self.user_profile["name"] = name.capitalize()
 
     # -----------------------------------
-    # GET CONTEXT (CLEAN FORMAT)
+    # VALIDATE NAME
+    # -----------------------------------
+    def _valid_name(self, name):
+
+        invalid_words = [
+            "sad", "tired", "happy", "angry",
+            "fine", "okay", "good", "bad"
+        ]
+
+        return name.isalpha() and name not in invalid_words and len(name) < 15
+
+    # -----------------------------------
+    # GET CONTEXT
     # -----------------------------------
     def get_context(self):
 
         context = ""
 
         for turn in self.history:
-            context += f"{turn['user']}\n{turn['bot']}\n"
+            context += f"User: {turn['user']}\nFriend: {turn['bot']}\n"
 
         return context.strip()
 
     # -----------------------------------
-    # NEW: GET USER NAME
+    # FIX: GET HISTORY (MISSING METHOD)
+    # -----------------------------------
+    def get_history(self):
+        return self.history
+
+    # -----------------------------------
+    # GET USER NAME
     # -----------------------------------
     def get_user_name(self):
         return self.user_profile.get("name")
 
     # -----------------------------------
-    # NEW: RESET MEMORY (OPTIONAL)
+    # PERSONALIZE TEXT
+    # -----------------------------------
+    def personalize(self, text):
+
+        name = self.get_user_name()
+
+        if name and name.lower() not in text.lower():
+            return f"{name}, {text}"
+
+        return text
+
+    # -----------------------------------
+    # RESET MEMORY
     # -----------------------------------
     def reset(self):
         self.history = []
